@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pantry Log">
+<meta name="theme-color" content="#f3f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101410" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Pantry Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* base reset (the Claude preview supplied this automatically) */
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-size:14px;-webkit-tap-highlight-color:transparent}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: one narrow phone-app column — week bar, five tabs, sheets slide up from the bottom; receipts read as a Kassenbon */
+:root{
+  --paper:#f3f5f0; --surface:#ffffff; --ink:#1a201b; --muted:#5d675e; --line:#d8ddd3;
+  --basil:#2c6a49; --basil-ink:#ffffff; --basil-soft:#e1ede5;
+  --tomato:#bf4329; --tomato-soft:#f7e2dc; --mustard:#a87410; --mustard-soft:#f4e9d0;
+  --receipt:#fffdf7; --scrim:rgba(16,22,17,.45);
+  --f-display:"Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body:"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#101410; --surface:#181d19; --ink:#e4e9e2; --muted:#98a396; --line:#2b332c;
+  --basil:#72c095; --basil-ink:#0d1a12; --basil-soft:#1d3226;
+  --tomato:#ec7b62; --tomato-soft:#3a1f18; --mustard:#deb14e; --mustard-soft:#33290f;
+  --receipt:#1b201c; --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#101410; --surface:#181d19; --ink:#e4e9e2; --muted:#98a396; --line:#2b332c;
+  --basil:#72c095; --basil-ink:#0d1a12; --basil-soft:#1d3226;
+  --tomato:#ec7b62; --tomato-soft:#3a1f18; --mustard:#deb14e; --mustard-soft:#33290f;
+  --receipt:#1b201c; --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:680px;margin:0 auto;padding-inline:16px;padding-block:18px 56px;display:flex;flex-direction:column;gap:16px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--basil);outline-offset:2px}
+
+header{display:flex;flex-direction:column;gap:12px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-display);font-stretch:72%;font-weight:800;font-size:2.1rem;line-height:1;margin:0;letter-spacing:-.01em;text-transform:uppercase}
+h1 span{color:var(--basil)}
+.today{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+.weekbar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px}
+.weekbar .lbl{flex:1;min-width:0;text-align:center;display:flex;flex-direction:column;line-height:1.15}
+.kw{font-family:var(--f-display);font-stretch:80%;font-weight:750;font-size:1.25rem}
+.range{font-size:.8rem;color:var(--muted)}
+.iconbtn{width:40px;height:40px;border-radius:9px;border:0;background:transparent;display:grid;place-items:center;font-size:1.3rem;color:var(--ink)}
+.iconbtn:hover{background:var(--paper)}
+.nowbtn{font-size:.75rem;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:3px 10px;margin-top:4px;align-self:center}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;background:var(--line);padding:4px;border-radius:11px}
+.tabs button{border:0;background:transparent;border-radius:8px;padding:8px 2px;font-weight:600;font-size:.86rem;color:var(--muted);min-width:0}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.banner{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--mustard-soft);border-radius:10px;padding:10px 12px;font-size:.85rem}
+.banner b{color:var(--mustard)}
+
+section{display:flex;flex-direction:column;gap:14px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat .v{font-family:var(--f-mono);font-weight:600;font-size:1.05rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.v.warn{color:var(--mustard)} .v.over{color:var(--tomato)}
+.progress{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.progress i{display:block;height:100%;background:var(--basil);border-radius:3px;transition:width .3s}
+.progress.warn i{background:var(--mustard)} .progress.over i{background:var(--tomato)}
+.plabel{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:-8px}
+
+form.add{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row > *{min-width:0}
+.field{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:.92rem;max-width:100%}
+.grow{flex:1 1 160px}
+.w-qty{flex:0 0 64px;width:64px}
+.w-sel{flex:1 1 110px}
+.w-price{flex:0 0 86px;width:86px}
+.primary{background:var(--basil);color:var(--basil-ink);border:0;border-radius:8px;padding:9px 16px;font-weight:700}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.85rem;font-weight:600}
+.ghost:hover{background:var(--surface)}
+.ghost:disabled,.primary:disabled{opacity:.45;cursor:default}
+.danger{border-color:var(--tomato);color:var(--tomato)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.seg button{border:0;background:transparent;padding:6px 10px;font-size:.78rem;font-weight:600;color:var(--muted)}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--basil-soft);color:var(--basil)}
+.seg button[aria-pressed="true"][data-level="low"]{background:var(--mustard-soft);color:var(--mustard)}
+.seg button[aria-pressed="true"][data-level="out"]{background:var(--tomato-soft);color:var(--tomato)}
+.bar-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+
+.group{display:flex;flex-direction:column;gap:6px}
+.gh{display:flex;justify-content:space-between;align-items:baseline;font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;padding-inline:2px}
+ul.items{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.check{flex:0 0 26px;width:26px;height:26px;border-radius:7px;border:2px solid var(--line);background:transparent;display:grid;place-items:center;padding:0;color:transparent}
+.item.done .check{background:var(--basil);border-color:var(--basil);color:var(--basil-ink)}
+.meta{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:none;border:0;padding:0}
+.nm{font-weight:600;overflow-wrap:anywhere}
+.item.done .nm{text-decoration:line-through;text-decoration-thickness:1.5px;color:var(--muted)}
+.sub{font-size:.78rem;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tag{font-size:.68rem;font-weight:700;letter-spacing:.03em;padding:1px 6px;border-radius:999px;background:var(--basil-soft);color:var(--basil)}
+.tag.warn{background:var(--mustard-soft);color:var(--mustard)}
+.tag.bad{background:var(--tomato-soft);color:var(--tomato)}
+.better{font-size:.75rem;color:var(--mustard);font-weight:600}
+.price{width:76px;flex:0 0 76px;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;background:transparent;border:1px dashed var(--line);border-radius:6px;padding:5px 6px;font-size:.88rem}
+.price:focus{border-style:solid;background:var(--paper)}
+.del{flex:0 0 30px;width:30px;height:30px;border:0;background:transparent;color:var(--muted);border-radius:7px;font-size:1.1rem}
+.del:hover{background:var(--tomato-soft);color:var(--tomato)}
+.empty{text-align:center;padding:26px 16px;border:1.5px dashed var(--line);border-radius:12px;color:var(--muted);font-size:.9rem}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.card h2{font-family:var(--f-display);font-stretch:80%;font-weight:750;font-size:1.1rem;margin:0}
+.card.due{background:var(--mustard-soft);border-color:transparent}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chipbtn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;font-size:.82rem;font-weight:600}
+.chipbtn small{color:var(--muted);font-weight:500}
+
+/* receipt */
+.receipt{background:var(--receipt);border:1px solid var(--line);border-radius:4px;padding:18px 16px 22px;font-family:var(--f-mono);font-size:.82rem;font-variant-numeric:tabular-nums;
+  -webkit-mask:radial-gradient(circle 5px at 50% 100%,transparent 98%,#000) 0 0/14px 100% repeat-x;mask:radial-gradient(circle 5px at 50% 100%,transparent 98%,#000) 0 0/14px 100% repeat-x}
+.receipt h3{text-align:center;margin:0 0 2px;font-size:.9rem;letter-spacing:.2em}
+.receipt .c{text-align:center;color:var(--muted);margin:0 0 10px}
+.rl{display:flex;gap:6px;align-items:baseline}
+.rl .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.rl .dots{flex:1;border-bottom:1px dotted var(--muted);transform:translateY(-3px);min-width:12px}
+.rl .p{white-space:nowrap}
+.rs{margin:10px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:.72rem}
+.rule{border-top:1px dashed var(--muted);margin:10px 0}
+.total{font-weight:600;font-size:.95rem}
+
+/* pantry */
+.pitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-top:1px solid var(--line);flex-wrap:wrap}
+.pitem:first-child{border-top:0}
+.pitem .meta{flex:1 1 120px}
+.tolist{font-size:.78rem;padding:6px 9px}
+.counts{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:999px}
+.chip.full{background:var(--basil-soft);color:var(--basil)}
+.chip.low{background:var(--mustard-soft);color:var(--mustard)}
+.chip.out{background:var(--tomato-soft);color:var(--tomato)}
+
+/* meals */
+.day{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-top:1px solid var(--line);flex-wrap:wrap}
+.day:first-child{border-top:0}
+.day .dl{flex:0 0 74px;font-weight:700;font-size:.85rem;padding-top:5px}
+.day .dl small{display:block;font-weight:500;color:var(--muted);font-size:.72rem}
+.day .dm{flex:1 1 180px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.mchip{display:inline-flex;align-items:center;gap:4px;background:var(--basil-soft);color:var(--basil);border-radius:999px;padding:3px 4px 3px 10px;font-size:.82rem;font-weight:600}
+.mchip button{border:0;background:transparent;color:inherit;width:22px;height:22px;border-radius:50%;padding:0}
+.addmeal{font-size:.8rem;padding:4px 8px;border-radius:999px}
+.meal{display:flex;gap:10px;align-items:center;padding:10px;border-top:1px solid var(--line)}
+.meal:first-child{border-top:0}
+
+/* prices */
+.pcard{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.pcard:first-child{border-top:0}
+.ptop{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ptop .last{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stores{display:flex;gap:6px;flex-wrap:wrap}
+.sp{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums}
+.sp.best{border-color:var(--basil);color:var(--basil);font-weight:600}
+.up{color:var(--tomato)} .down{color:var(--basil)}
+
+/* stats */
+.bars{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;align-items:end;height:170px}
+.bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0;border:0;background:transparent;padding:0}
+.bar .val{font-family:var(--f-mono);font-size:.66rem;color:var(--muted);white-space:nowrap}
+.bar .col{width:100%;max-width:38px;background:var(--basil-soft);border-radius:5px 5px 2px 2px;min-height:2px}
+.bar.cur .col{background:var(--basil)}
+.bar.over .col{background:var(--tomato-soft)} .bar.over.cur .col{background:var(--tomato)}
+.bar.cur .val{color:var(--ink);font-weight:600}
+.bar .wk{font-size:.7rem;color:var(--muted);font-family:var(--f-mono)}
+.hrow{display:grid;grid-template-columns:minmax(0,9rem) 1fr auto;gap:10px;align-items:center;font-size:.85rem}
+.hrow .track{height:10px;background:var(--paper);border-radius:5px;overflow:hidden}
+.hrow .track i{display:block;height:100%;background:var(--basil);border-radius:5px}
+.amt,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:.9rem;align-items:center}
+.kv .mono{font-weight:600}
+textarea.field{width:100%;min-height:110px;font-family:var(--f-mono);font-size:.75rem;resize:vertical}
+.msg{font-size:.82rem;color:var(--basil);min-height:1.2em;margin:0}
+.msg.err{color:var(--tomato)}
+
+/* sheets & overlays */
+.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.sheet{background:var(--surface);width:100%;max-width:640px;max-height:92%;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:16px}}
+.sheet h2{font-family:var(--f-display);font-stretch:80%;font-weight:750;font-size:1.25rem;margin:0}
+.shead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sheet label.f{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--muted);font-weight:600;flex:1 1 130px;min-width:0}
+.sheet label.f .field{color:var(--ink);font-weight:400;width:100%}
+.cb{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.cb input{width:18px;height:18px;accent-color:var(--basil)}
+.pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pick label,.pick button{display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;text-align:center;border:1.5px dashed var(--line);border-radius:12px;padding:16px 8px;font-weight:700;font-size:.88rem;cursor:pointer;background:transparent}
+.pick small{font-weight:500;color:var(--muted);font-size:.72rem}
+.pick input{position:absolute;width:1px;height:1px;opacity:0}
+@media (max-width:440px){.pick{grid-template-columns:1fr}}
+.rv{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.rv li{display:flex;flex-direction:column;gap:6px;padding:10px;border-top:1px solid var(--line)}
+.rv li:first-child{border-top:0}
+.rv li.skip{opacity:.55}
+.rvtop{display:flex;justify-content:space-between;gap:10px;font-family:var(--f-mono);font-size:.82rem}
+.rvtop span:first-child{overflow-wrap:anywhere;min-width:0}
+.sumcheck{font-size:.85rem;padding:8px 10px;border-radius:8px;background:var(--basil-soft);color:var(--basil)}
+.sumcheck.off{background:var(--mustard-soft);color:var(--mustard)}
+.status{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;padding:24px 8px;color:var(--muted)}
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--basil);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.shop{position:fixed;inset:0;background:var(--paper);z-index:25;overflow:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px))}
+.shop .in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.sitem{display:flex;align-items:center;gap:14px;width:100%;padding:14px 12px;border:0;border-top:1px solid var(--line);background:var(--surface);text-align:left;font-size:1.15rem;font-weight:600}
+.sitem:first-child{border-top:0}
+.sitem .check{flex:0 0 32px;width:32px;height:32px}
+.sitem.done{color:var(--muted);text-decoration:line-through}
+.sitem.done .check{background:var(--basil);border-color:var(--basil);color:var(--basil-ink)}
+.sitem small{display:block;font-size:.8rem;font-weight:500;color:var(--muted);text-decoration:none}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:999px;font-size:.88rem;z-index:40;max-width:calc(100% - 32px);text-align:center}
+
+@media (max-width:440px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .bar .val{font-size:.58rem}
+  .hrow{grid-template-columns:minmax(0,6.5rem) 1fr auto}
+  .tabs button{font-size:.78rem}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Pantry <span>Log</span></h1>
+      <span class="today" id="today"></span>
+    </div>
+    <div class="weekbar">
+      <button class="iconbtn" id="prev" aria-label="Previous week">‹</button>
+      <div class="lbl">
+        <span class="kw" id="kw"></span>
+        <span class="range" id="range"></span>
+        <button class="nowbtn" id="now" hidden>Back to this week</button>
+      </div>
+      <button class="iconbtn" id="next" aria-label="Next week">›</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="list" aria-selected="true">List</button>
+      <button role="tab" data-tab="pantry" aria-selected="false">Pantry</button>
+      <button role="tab" data-tab="meals" aria-selected="false">Meals</button>
+      <button role="tab" data-tab="prices" aria-selected="false">Prices</button>
+      <button role="tab" data-tab="stats" aria-selected="false">Stats</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden>
+    <span><b>Example data.</b> These items are samples so you can see how it works.</span>
+    <button class="ghost" id="clearEx">Start fresh</button>
+  </div>
+
+  <div class="banner" id="backupNag" hidden>
+    <span id="backupText"></span>
+    <button class="ghost" data-act="go-backup">Back up now</button>
+  </div>
+
+  <section id="tab-list">
+    <div class="stats" id="stats"></div>
+    <div class="progress" id="bud"><i></i></div>
+    <div class="plabel" id="budLabel"></div>
+    <div class="actions">
+      <button class="primary" data-act="scan">Scan receipt</button>
+      <button class="ghost" data-act="shop">Shopping mode</button>
+      <button class="ghost" id="copyPrev">Copy last week's list</button>
+      <button class="ghost" id="addLow">Add low pantry items</button>
+    </div>
+    <div id="due"></div>
+    <form class="add" id="addForm" autocomplete="off">
+      <div class="row">
+        <input class="field grow" id="aName" placeholder="Add an item, e.g. Haferflocken" aria-label="Item name" required>
+        <button class="primary" type="submit">Add</button>
+      </div>
+      <div class="row">
+        <input class="field w-qty" id="aQty" inputmode="decimal" value="1" aria-label="Quantity">
+        <select class="field w-sel" id="aUnit" aria-label="Unit"></select>
+        <select class="field w-sel" id="aCat" aria-label="Category"></select>
+        <select class="field w-sel" id="aStore" aria-label="Store"></select>
+      </div>
+      <p class="hint">Leave the price empty. It fills in when you scan the receipt.</p>
+    </form>
+    <div class="bar-head">
+      <span class="gh" style="padding:0">Group by</span>
+      <span class="seg" id="groupSeg"><button data-group="cat">Category</button><button data-group="store">Store</button></span>
+    </div>
+    <div id="listGroups" style="display:flex;flex-direction:column;gap:14px"></div>
+    <div id="receipt"></div>
+  </section>
+
+  <section id="tab-pantry" hidden>
+    <div class="counts" id="pcounts"></div>
+    <div id="useSoon"></div>
+    <form class="add" id="pForm" autocomplete="off">
+      <div class="row">
+        <input class="field grow" id="pName" placeholder="Something you keep at home, e.g. Olive oil" aria-label="Pantry item" required>
+        <select class="field w-sel" id="pCat" aria-label="Category"></select>
+        <button class="primary" type="submit">Add</button>
+      </div>
+    </form>
+    <p class="hint">Mark items Low or Out as you use them up. Buying an item sets it back to Stocked. Tap a name to add a best-before date.</p>
+    <div id="pantryGroups" style="display:flex;flex-direction:column;gap:14px"></div>
+    <div class="card">
+      <h2>Every-week staples</h2>
+      <p class="hint">These go onto each new week's list automatically. Tap an item on your list and tick "Add every week" to add one.</p>
+      <div class="chips" id="staples"></div>
+    </div>
+  </section>
+
+  <section id="tab-meals" hidden>
+    <div class="stats" id="mstats"></div>
+    <div class="actions">
+      <button class="primary" id="mealToList">Add ingredients to list</button>
+      <button class="ghost" data-act="meal-new">New meal</button>
+    </div>
+    <ul class="items" id="days"></ul>
+    <div class="gh"><span>Your meals</span></div>
+    <ul class="items" id="mealLib"></ul>
+  </section>
+
+  <section id="tab-prices" hidden>
+    <input class="field" id="pSearch" type="search" placeholder="Search items" aria-label="Search prices">
+    <p class="hint">Built from every price you've logged. The cheapest store's latest price is highlighted. Arrows compare with the previous purchase.</p>
+    <div id="priceList"></div>
+  </section>
+
+  <section id="tab-stats" hidden>
+    <div class="card">
+      <div class="bar-head"><h2>Spent per week</h2>
+        <label class="row" style="font-size:.85rem;gap:6px">Weekly budget <input class="field w-price" id="budget" inputmode="decimal" placeholder="€"></label></div>
+      <div class="bars" id="bars"></div>
+      <p class="hint">Counts bought items with a price. Weeks over budget show in red. Tap a week to open it.</p>
+    </div>
+    <div class="card">
+      <h2 id="catTitle">Where the money went</h2>
+      <div id="cats" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Protein</h2>
+      <div id="protein" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="card">
+      <h2>Pfand</h2>
+      <div id="pfand" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div class="row">
+        <input class="field w-price" id="pfAmt" inputmode="decimal" placeholder="€" aria-label="Pfand amount">
+        <button class="ghost" data-act="pf-paid">Paid deposit</button>
+        <button class="ghost" data-act="pf-ret">Got bottles back</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Shared with flatmates</h2>
+      <div id="flat" style="display:flex;flex-direction:column;gap:8px"></div>
+      <form class="row" id="mateForm" autocomplete="off">
+        <input class="field grow" id="mateName" placeholder="Flatmate's name" aria-label="Flatmate name" required>
+        <button class="ghost" type="submit">Add flatmate</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Your data</h2>
+      <p class="hint">Everything is saved in this browser only. Copy the backup to keep it safe or move it to another device, then paste it back in to restore.</p>
+      <textarea class="field" id="dataBox" aria-label="Backup data" spellcheck="false"></textarea>
+      <div class="actions">
+        <button class="ghost" id="copyData">Copy backup</button>
+        <button class="ghost" id="loadData">Restore from pasted backup</button>
+        <button class="ghost danger" id="wipe">Delete all data</button>
+      </div>
+      <p class="msg" id="dataMsg"></p>
+    </div>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="shop" id="shop" hidden><div class="in" id="shopIn"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- receipt reading: pure functions, no network ---------- */
+(function(g){
+const norm=s=>String(s).toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[^a-z0-9]+/g,' ').trim();
+const toks=s=>norm(s).split(' ').filter(t=>t.length>=2&&!/^\d+$/.test(t)&&!/^\d*(l|ml|g|kg|stk|st|pck|pack|x)$/.test(t));
+const near=(t,u)=>t===u||(Math.min(t.length,u.length)>=3&&(u.startsWith(t)||t.startsWith(u)));
+function sim(a,b){const A=toks(a),B=toks(b);if(!A.length||!B.length)return 0;
+  const ma=A.filter(t=>B.some(u=>near(t,u))).length, mb=B.filter(u=>A.some(t=>near(t,u))).length;
+  return .5*ma/A.length+.5*mb/B.length}
+const pv=s=>{const neg=/-/.test(s);const n=parseFloat(s.replace(/-/g,'').replace(',','.'));return neg?-n:n};
+const STORE_RX=[['Aldi',/\bALDI\b/],['Lidl',/\bLIDL\b/],['Rewe',/\bREWE\b/],['Edeka',/\bE\s?DEKA\b/],['Kaufland',/\bKAUFLAND\b/],['dm',/\bDM[- ]?(DROGERIE|MARKT)/],['Netto',/NETTO[\s-]*(MARKEN|APP|ONLINE|FILIALE)/]];
+const SKIP=/\b(summe|zu zahlen|zwischensumme|gesamt|total|bar|rueckgeld|gegeben|kartenzahlung|karte|girocard|ec|visa|mastercard|maestro|mwst|ust|steuer|brutto|tse|kasse|kassierer|bon|beleg|datum|uhrzeit|filiale|steuernr|tel|telefon|www|danke|vielen|betrag|zahlung|payback|punkte|transaktion|terminal)\b/;
+function parseReceipt(text){
+  const up=text.toUpperCase();
+  const store=(STORE_RX.find(([,r])=>r.test(up))||[''])[0];
+  let date=null;const dm=text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b/);
+  if(dm){let y=+dm[3];if(y<100)y+=2000;const d=new Date(y,+dm[2]-1,+dm[1]);if(+dm[2]>=1&&+dm[2]<=12&&Math.abs(d-new Date())<400*864e5)date=d}
+  const raw=text.replace(/\r/g,'').split('\n').map(l=>l.replace(/(\d)\s*[.,]\s*(\d{2})(?![\d.])/g,'$1,$2').replace(/\s+/g,' ').trim()).filter(Boolean);
+  const lines=[];let total=null,pfandPaid=0,pfandRet=0,last=null;
+  for(const l of raw){
+    const ln=norm(l), prices=l.match(/-?\d{1,4},\d{2}-?/g)||[];
+    const qm=l.match(/^(\d+(?:,\d+)?)\s*(stk|st|kg)?\s*[x×*]\s*(\d+,\d{2})/i);
+    if(qm&&last&&prices.length<=2&&!/[a-zäöü]{4,}/i.test(l.replace(/stk|eur|kg/gi,''))){last.qty=parseFloat(qm[1].replace(',','.'));if(/kg/i.test(qm[2]||''))last.unit='kg';continue}
+    if(/\b(summe|zu zahlen|gesamtbetrag|gesamt|total)\b/.test(ln)&&!/zwischensumme/.test(ln)&&prices.length){total=Math.abs(pv(prices[prices.length-1]));break}
+    if(!prices.length||prices.length>=3)continue;
+    const pm=l.match(/^(.*?)\s*(-?\d{1,4},\d{2})(-?)\s*(?:[A-Z]{1,2}\b|\*|\d)?\s*\*?$/i);
+    if(!pm)continue;
+    let name=pm[1].trim(), price=pv(pm[2]+(pm[3]||'')), qty=null, q;
+    if((q=name.match(/\s*(\d+,\d{2})\s*[x×*]\s*(\d+)\s*$/))){qty=+q[2];name=name.slice(0,q.index).trim()}
+    else if((q=name.match(/\s*(\d+)\s*(?:stk|st)?\s*[x×*]\s*(\d+,\d{2})\s*$/i))){qty=+q[1];name=name.slice(0,q.index).trim()}
+    name=name.replace(/^\d{3,}\s+/,'').replace(/\s+[A-Z]$/,'').trim();
+    const nn=norm(name);
+    if(/pfand|leergut/.test(nn)){if(price<0||/leergut|rueckgabe|ruecknahme|bon/.test(nn))pfandRet+=Math.abs(price);else pfandPaid+=price;continue}
+    if(price<0||/rabatt|preisvorteil|coupon|nachlass|ermaessig|lidl plus|gutschein|sofortrabatt/.test(nn)){if(last)last.price=Math.round((last.price-Math.abs(price))*100)/100;continue}
+    if(SKIP.test(nn))continue;
+    if(name.replace(/[^a-zäöüß]/gi,'').length<2)continue;
+    last={name,price,qty,unit:null};lines.push(last);
+  }
+  return {store,date,total,lines,pfandPaid:Math.round(pfandPaid*100)/100,pfandRet:Math.round(pfandRet*100)/100};
+}
+g.PL={norm,toks,sim,parseReceipt};
+})(typeof window!=='undefined'?window:globalThis);
+</script>
+
+<script>
+(function(){
+const {norm,sim,parseReceipt}=window.PL;
+const KEY='pantry-log-v1';
+const CATS=['Produce','Dairy & eggs','Meat & protein','Bread & bakery','Pantry staples','Frozen','Drinks','Snacks','Household'];
+const UNITS=['pcs','pack','g','kg','ml','L','bottle'];
+const STORES=['Aldi','Lidl','Rewe','Edeka','Netto','Kaufland','dm','Other'];
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFWK='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const TESS='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const EUR=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
+const eur=n=>EUR.format(n||0);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+const num=v=>{if(v===''||v==null)return null;const n=parseFloat(String(v).replace(',','.'));return isFinite(n)?n:null};
+const fmtNum=n=>n==null?'':String(Math.round(n*100)/100).replace('.',',');
+const r2=n=>Math.round(n*100)/100;
+function monday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function key(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const fromKey=k=>new Date(k+'T00:00:00');
+function isoWeek(d){const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1));return Math.ceil(((t-y0)/864e5+1)/7)}
+const dFmt=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short'});
+const pretty=s=>String(s).toLowerCase().replace(/(^|[\s-])\S/g,c=>c.toUpperCase());
+const opts=(arr,sel)=>arr.map(v=>`<option${v===sel?' selected':''}>${esc(v)}</option>`).join('');
+
+const THIS=monday(new Date());
+let view=new Date(THIS), tab='list', wipeArmed=false, settleArmed=false, rv=null, sheetFn=null, pq='';
+
+/* ---------- data ---------- */
+function ensure(d){d.weeks=d.weeks||{};d.pantry=d.pantry||[];d.aliases=d.aliases||{};d.staples=d.staples||[];d.meta=d.meta||{};d.pfand=d.pfand||{};
+  d.meals=d.meals||[];d.plan=d.plan||{};d.flat=d.flat||{};d.flat.mates=d.flat.mates||[];if(d.budget===undefined)d.budget=null;d.ui=d.ui||{group:'cat'};d.proteinOf=d.proteinOf||{};return d}
+function seed(){
+  const k=o=>key(addDays(THIS,o));
+  const it=(name,qty,unit,cat,store,price,done,x)=>({id:uid(),name,qty,unit,cat,store,price,done,...(x||{})});
+  const today=new Date(), iso=n=>key(addDays(today,n));
+  const m1=uid(),m2=uid(),m3=uid();
+  return {examples:true,budget:40,
+   weeks:{
+    [k(-21)]:[it('Milch 1,5%',2,'L','Dairy & eggs','Aldi',1.98,true),it('Eggs (10)',1,'pack','Dairy & eggs','Aldi',2.49,true,{protein:65}),it('Chicken breast',1,'kg','Meat & protein','Lidl',8.99,true,{protein:230}),it('Rice',1,'kg','Pantry staples','Aldi',1.79,true),it('Bananas',1,'kg','Produce','Aldi',1.29,true),it('Skyr',3,'pcs','Dairy & eggs','Aldi',3.57,true,{protein:99}),it('Pasta',2,'pack','Pantry staples','Aldi',1.58,true),it('Tomatoes',500,'g','Produce','Aldi',1.79,true)],
+    [k(-14)]:[it('Milch 1,5%',2,'L','Dairy & eggs','Lidl',1.98,true),it('Skyr',3,'pcs','Dairy & eggs','Lidl',3.87,true,{protein:99}),it('Haferflocken',1,'pack','Pantry staples','Lidl',0.79,true,{protein:68}),it('Frozen vegetables',2,'pack','Frozen','Lidl',3.18,true),it('Apples',1,'kg','Produce','Lidl',2.29,true),it('Dish soap',1,'bottle','Household','dm',0.95,true,{shared:true}),it('Pasta',2,'pack','Pantry staples','Lidl',1.58,true),it('Haribo',1,'pack','Snacks','Lidl',1.19,true,{unplanned:true})],
+    [k(-7)]:[it('Milch 1,5%',2,'L','Dairy & eggs','Rewe',2.18,true),it('Eggs (10)',1,'pack','Dairy & eggs','Rewe',2.79,true,{protein:65}),it('Chicken breast',1,'kg','Meat & protein','Rewe',9.49,true,{protein:230}),it('Tomatoes',500,'g','Produce','Rewe',1.99,true),it('Onions',1,'kg','Produce','Rewe',1.29,true),it('Sprudel (6×1,5 L)',1,'pack','Drinks','Rewe',3.15,true,{shared:true})],
+    [k(0)]:[it('Milch 1,5%',2,'L','Dairy & eggs','Aldi',1.98,true),it('Eggs (10)',1,'pack','Dairy & eggs','Aldi',2.49,true,{protein:65}),it('Haferflocken',1,'pack','Pantry staples','Aldi',0.79,true,{protein:68}),it('Bananas',1,'kg','Produce','Aldi',1.29,true),it('Chicken breast',1,'kg','Meat & protein','Lidl',null,false,{protein:230,fromMeal:true}),it('Rice',1,'kg','Pantry staples','Aldi',null,false,{fromMeal:true}),it('Spinach',300,'g','Produce','Aldi',null,false,{fromMeal:true}),it('Toilet paper',1,'pack','Household','dm',null,false,{shared:true})]
+   },
+   meta:{[k(0)]:{staples:true}},
+   staples:[{name:'Milch 1,5%',qty:2,unit:'L',cat:'Dairy & eggs',store:'Aldi'},{name:'Eggs (10)',qty:1,unit:'pack',cat:'Dairy & eggs',store:'Aldi'},{name:'Haferflocken',qty:1,unit:'pack',cat:'Pantry staples',store:'Aldi'}],
+   pfand:{[k(-14)]:{paid:1.5,returned:0},[k(-7)]:{paid:1.5,returned:1.75},[k(0)]:{paid:0,returned:0.75}},
+   aliases:{'haferfl zart':'Haferflocken','eier bodenh 10er':'Eggs (10)','h milch 1 5':'Milch 1,5%','haehn brustfil':'Chicken breast'},
+   pantry:[
+    {id:uid(),name:'Rice',cat:'Pantry staples',level:'low'},{id:uid(),name:'Haferflocken',cat:'Pantry staples',level:'full'},
+    {id:uid(),name:'Olive oil',cat:'Pantry staples',level:'full'},{id:uid(),name:'Peanut butter',cat:'Pantry staples',level:'out'},
+    {id:uid(),name:'Skyr',cat:'Dairy & eggs',level:'low',exp:iso(2)},{id:uid(),name:'Spinach',cat:'Produce',level:'full',exp:iso(-1)},
+    {id:uid(),name:'Frozen vegetables',cat:'Frozen',level:'low'},{id:uid(),name:'Toilet paper',cat:'Household',level:'out'},
+    {id:uid(),name:'Coffee',cat:'Drinks',level:'low'}],
+   meals:[
+    {id:m1,name:'Chicken rice bowl',protein:48,ing:[{name:'Chicken breast',qty:1,unit:'kg',cat:'Meat & protein'},{name:'Rice',qty:1,unit:'kg',cat:'Pantry staples'},{name:'Spinach',qty:300,unit:'g',cat:'Produce'}]},
+    {id:m2,name:'Overnight oats',protein:32,ing:[{name:'Haferflocken',qty:1,unit:'pack',cat:'Pantry staples'},{name:'Skyr',qty:2,unit:'pcs',cat:'Dairy & eggs'},{name:'Bananas',qty:1,unit:'kg',cat:'Produce'}]},
+    {id:m3,name:'Pasta pomodoro',protein:18,ing:[{name:'Pasta',qty:1,unit:'pack',cat:'Pantry staples'},{name:'Tomatoes',qty:500,unit:'g',cat:'Produce'},{name:'Onions',qty:1,unit:'pcs',cat:'Produce'}]}],
+   plan:{[k(0)]:[{m:m1,d:0},{m:m2,d:1},{m:m1,d:2},{m:m3,d:3},{m:m2,d:4}]},
+   flat:{mates:['Flatmate']},
+   proteinOf:{'chicken breast':230,'eggs 10':65,'skyr':99,'haferflocken':68},
+   ui:{group:'cat'}};
+}
+function valid(d){return d&&typeof d==='object'&&d.weeks&&typeof d.weeks==='object'&&Array.isArray(d.pantry)}
+function load(){try{const s=localStorage.getItem(KEY);if(!s)return null;const d=JSON.parse(s);return valid(d)?d:null}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+let state=ensure(load()||seed());
+const empty=()=>ensure({examples:false,weeks:{},pantry:[]});
+
+const weekOf=k=>(state.weeks[k]||(state.weeks[k]=[]));
+const week=()=>weekOf(key(view));
+const isStaple=n=>state.staples.some(s=>norm(s.name)===norm(n));
+function lastItem(n){const ks=Object.keys(state.weeks).sort().reverse();for(const k of ks){const i=state.weeks[k].find(i=>norm(i.name)===n);if(i)return i}return null}
+const KW=[['Dairy & eggs',/milch|joghurt|jogurt|skyr|kaese|quark|butter|sahne|\beier?\b|egg|mozzarella|cheese|\bmilk|yog/],['Meat & protein',/haehn|huhn|chicken|rind|hack|wurst|schinken|salami|lachs|thunfisch|tofu|pute|fleisch|beef|fish|fisch/],['Bread & bakery',/brot|toast|broetchen|bread|croissant|wrap|tortilla/],['Frozen',/\btk\b|tiefk|frozen|pizza|\beis\b/],['Drinks',/wasser|sprudel|saft|cola|kaffee|coffee|\btee\b|\btea\b|bier|limo|juice/],['Snacks',/chips|schoko|keks|riegel|snack|nuss|nuts|gummi|haribo/],['Household',/toilett|klopapier|spuel|wasch|seife|zahn|shampoo|dusch|muell|kuechenrolle|tuecher|deo|soap|paper/],['Produce',/banane|apfel|aepfel|tomate|gurke|zwiebel|kartoffel|spinat|salat|paprika|moehre|karotte|zitrone|knoblauch|brokkoli|banana|apple|tomato|onion|potato|spinach|lettuce|carrot|lemon|garlic|avocado|beere|berr|obst|gemuese/]];
+function catGuess(name){const n=norm(name);const h=lastItem(n);if(h)return h.cat;const p=state.pantry.find(p=>norm(p.name)===n);if(p)return p.cat;for(const [c,r] of KW)if(r.test(n))return c;return 'Pantry staples'}
+function newItem(o){const it={id:uid(),name:'',qty:1,unit:'pcs',cat:'Pantry staples',store:'Aldi',price:null,done:false,...o};
+  if(it.protein==null){const p=state.proteinOf[norm(it.name)];if(p!=null)it.protein=p}return it}
+function syncPantry(name){const p=state.pantry.find(p=>norm(p.name)===norm(name));if(p){p.level='full';delete p.exp}}
+function ensureStaples(){const k=key(view);if(k<key(THIS)||k>key(addDays(THIS,7)))return;state.meta[k]=state.meta[k]||{};if(state.meta[k].staples)return;
+  const w=week();state.staples.forEach(s=>{if(!w.some(i=>norm(i.name)===norm(s.name)))w.push(newItem({...s}))});state.meta[k].staples=true;save()}
+const spent=items=>r2(items.reduce((s,i)=>s+(i.done&&i.price!=null?i.price:0),0));
+function priceIndex(){const idx={};Object.keys(state.weeks).sort().forEach(k=>state.weeks[k].forEach(i=>{if(!i.done||i.price==null)return;const n=norm(i.name);
+  (idx[n]||(idx[n]={name:i.name,e:[]})).e.push({k,store:i.store,price:i.price,qty:i.qty,unit:i.unit});idx[n].name=i.name}));return idx}
+function latestByStore(e){const m={};e.forEach(x=>m[x.store]=x);return m}
+function cheaper(i,idx){const e=idx[norm(i.name)];if(!e)return null;const by=latestByStore(e.e);const best=Object.values(by).sort((a,b)=>a.price-b.price)[0];
+  const ref=i.price!=null?i.price:(by[i.store]?by[i.store].price:null);if(ref==null||best.store===i.store)return null;return best.price<ref-.009?best:null}
+function dueItems(){const vk=key(view);if(vk<key(THIS))return[];const seen={};
+  Object.keys(state.weeks).filter(k=>k<vk).sort().forEach(k=>state.weeks[k].forEach(i=>{if(!i.done)return;const n=norm(i.name);const s=seen[n]||(seen[n]={name:i.name,cat:i.cat,store:i.store,unit:i.unit,qty:i.qty,ks:[]});if(!s.ks.includes(k))s.ks.push(k)}));
+  const w=week(),out=[];for(const n in seen){const s=seen[n];if(s.ks.length<2||w.some(i=>norm(i.name)===n)||isStaple(s.name))continue;
+    const every=Math.max(1,Math.round((fromKey(s.ks[s.ks.length-1])-fromKey(s.ks[0]))/6048e5/(s.ks.length-1)));
+    const since=Math.round((view-fromKey(s.ks[s.ks.length-1]))/6048e5);if(since>=every)out.push({...s,every,since})}
+  return out.sort((a,b)=>b.since/b.every-a.since/a.every).slice(0,8)}
+const daysTo=iso=>Math.round((fromKey(iso)-fromKey(key(new Date())))/864e5);
+
+/* ---------- render ---------- */
+['aUnit','aCat','aStore','pCat'].forEach((id,i)=>$(id).innerHTML=opts([UNITS,CATS,STORES,CATS][i],['pcs','Produce','Aldi','Pantry staples'][i]));
+$('today').textContent='Today · '+new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'numeric',month:'short'}).format(new Date());
+
+function render(){
+  $('kw').textContent='KW '+isoWeek(view)+' · '+view.getFullYear();
+  $('range').textContent=dFmt.format(view)+' – '+dFmt.format(addDays(view,6))+(key(view)===key(THIS)?' · this week':'');
+  $('now').hidden=key(view)===key(THIS);
+  $('banner').hidden=!state.examples;
+  const hasData=!state.examples&&Object.values(state.weeks).some(w=>w.length),lb=state.ui.lastBackup,age=lb?Math.floor((Date.now()-lb)/864e5):null;
+  $('backupNag').hidden=!(hasData&&(age==null||age>=14));
+  $('backupText').innerHTML=age==null?'<b>No backup yet.</b> Your data lives only on this phone.':`<b>Last backup ${age} days ago.</b> Copy a fresh one to stay safe.`;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));
+  ['list','pantry','meals','prices','stats'].forEach(t=>$('tab-'+t).hidden=t!==tab);
+  ({list:renderList,pantry:renderPantry,meals:renderMeals,prices:renderPrices,stats:renderStats})[tab]();
+  if(!$('shop').hidden)renderShop();
+}
+
+function renderList(){
+  ensureStaples();
+  const items=week(),done=items.filter(i=>i.done),sp=spent(items),idx=priceIndex();
+  const planned=r2(items.reduce((s,i)=>{if(i.price!=null)return s+i.price;const e=idx[norm(i.name)];return s+(e?e.e[e.e.length-1].price:0)},0));
+  const b=state.budget, left=b!=null?r2(b-sp):null, ratio=b?sp/b:0, cls=ratio>=1?'over':ratio>=.8?'warn':'';
+  $('stats').innerHTML=[[done.length+'/'+items.length,'Bought',''],[eur(sp),'Spent',''],[b!=null?eur(left):'—',b!=null?'Budget left':'No budget set',cls],[eur(planned),'Expected total','']]
+    .map(([v,k,c])=>`<div class="stat"><span class="v ${c}">${v}</span><span class="k">${k}</span></div>`).join('');
+  $('bud').className='progress '+(b?cls:'');$('bud').firstElementChild.style.width=(b?Math.min(100,ratio*100):(items.length?done.length/items.length*100:0))+'%';
+  $('budLabel').innerHTML=b?`<span>${eur(sp)} of ${eur(b)} budget</span><span>${ratio>=1?'Over budget':Math.round(ratio*100)+'%'}</span>`:`<span>${done.length} of ${items.length} items bought</span><span>Set a budget in Stats</span>`;
+  $('copyPrev').disabled=!(state.weeks[key(addDays(view,-7))]||[]).length;
+  $('addLow').disabled=!state.pantry.some(p=>p.level!=='full'&&!items.some(i=>norm(i.name)===norm(p.name)));
+  const due=dueItems();
+  $('due').innerHTML=due.length?`<div class="card due"><h2>Probably due this week</h2><p class="hint">Based on how often you've bought these before.</p><div class="chips">${due.map(d=>`<button class="chipbtn" data-act="due-add" data-n="${esc(d.name)}">+ ${esc(d.name)} <small>every ${d.every===1?'week':d.every+' wks'}</small></button>`).join('')}</div></div>`:'';
+  document.querySelectorAll('#groupSeg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.group===state.ui.group));
+  if(!items.length){$('listGroups').innerHTML=`<div class="empty">No groceries planned for this week yet.<br>Add an item above, copy last week's list, or scan a receipt.</div>`;$('receipt').innerHTML='';return}
+  const byStore=state.ui.group==='store', keys=byStore?STORES:CATS, gk=i=>byStore?i.store:i.cat;
+  $('listGroups').innerHTML=keys.filter(c=>items.some(i=>gk(i)===c)).map(c=>{const g=items.filter(i=>gk(i)===c);
+    const gsum=byStore?` · ${eur(spent(g))}`:'';
+    return `<div class="group"><div class="gh"><span>${esc(c)}</span><span>${g.filter(i=>i.done).length}/${g.length}${gsum}</span></div><ul class="items">${g.map(i=>rowHTML(i,idx,byStore)).join('')}</ul></div>`}).join('');
+  if(!done.length){$('receipt').innerHTML='';return}
+  const stores=STORES.filter(s=>done.some(i=>i.store===s)),pf=state.pfand[key(view)]||{paid:0,returned:0};
+  $('receipt').innerHTML=`<div class="receipt"><h3>KASSENBON</h3><p class="c">KW ${isoWeek(view)} · ${dFmt.format(view)} – ${dFmt.format(addDays(view,6))}</p>
+    ${stores.map(s=>`<div class="rs">${esc(s)}</div>${done.filter(i=>i.store===s).map(i=>`<div class="rl"><span class="n">${esc(i.name)}</span><span class="dots"></span><span class="p">${i.price!=null?eur(i.price):'—'}</span></div>`).join('')}`).join('')}
+    ${pf.paid||pf.returned?`<div class="rs">Pfand</div>${pf.paid?`<div class="rl"><span class="n">Deposit paid</span><span class="dots"></span><span class="p">${eur(pf.paid)}</span></div>`:''}${pf.returned?`<div class="rl"><span class="n">Bottles returned</span><span class="dots"></span><span class="p">−${eur(pf.returned)}</span></div>`:''}`:''}
+    <div class="rule"></div>
+    <div class="rl total"><span class="n">SUMME EUR</span><span class="dots"></span><span class="p">${eur(sp)}</span></div>
+    <div class="rl" style="color:var(--muted)"><span class="n">${done.length} of ${items.length} items · groceries only, without Pfand</span></div></div>`;
+}
+function rowHTML(i,idx,byStore){
+  const best=cheaper(i,idx);
+  const tags=[isStaple(i.name)?'<span class="tag">every week</span>':'',i.fromMeal?'<span class="tag">meal</span>':'',i.shared?'<span class="tag">shared</span>':'',i.unplanned?'<span class="tag warn">unplanned</span>':''].join('');
+  return `<li class="item${i.done?' done':''}">
+    <button class="check" data-act="toggle" data-id="${i.id}" aria-pressed="${!!i.done}" aria-label="Mark ${esc(i.name)} as bought"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="meta" data-act="edit" data-id="${i.id}"><span class="nm">${esc(i.name)}</span><span class="sub">${fmtNum(i.qty)} ${esc(i.unit)} · ${esc(byStore?i.cat:i.store)} ${tags}</span>${best?`<span class="better">Cheaper at ${esc(best.store)}: ${eur(best.price)}</span>`:''}</button>
+    <input class="price" data-act="price" data-id="${i.id}" inputmode="decimal" placeholder="€" value="${fmtNum(i.price)}" aria-label="Price of ${esc(i.name)} in euros">
+    <button class="del" data-act="del" data-id="${i.id}" aria-label="Remove ${esc(i.name)}">×</button></li>`}
+
+function renderPantry(){
+  const P=state.pantry,items=week(),c={full:0,low:0,out:0};P.forEach(p=>c[p.level]++);
+  $('pcounts').innerHTML=`<span class="chip full">${c.full} stocked</span><span class="chip low">${c.low} low</span><span class="chip out">${c.out} out</span>`;
+  const soon=P.filter(p=>p.exp&&daysTo(p.exp)<=3).sort((a,b)=>a.exp.localeCompare(b.exp));
+  $('useSoon').innerHTML=soon.length?`<div class="card due"><h2>Use soon</h2><div class="chips">${soon.map(p=>`<button class="chipbtn" data-act="pedit" data-id="${p.id}">${esc(p.name)} <small>${expLabel(p.exp)}</small></button>`).join('')}</div></div>`:'';
+  $('pantryGroups').innerHTML=!P.length?`<div class="empty">Your pantry is empty.<br>Add the things you keep at home so you know when to restock.</div>`:
+  CATS.filter(cat=>P.some(p=>p.cat===cat)).map(cat=>`<div class="group"><div class="gh"><span>${esc(cat)}</span></div><ul class="items">${
+    P.filter(p=>p.cat===cat).map(p=>{const on=items.some(i=>norm(i.name)===norm(p.name)),d=p.exp?daysTo(p.exp):null;
+      return `<li class="pitem"><button class="meta" data-act="pedit" data-id="${p.id}"><span class="nm">${esc(p.name)}</span>${p.exp?`<span class="sub"><span class="tag ${d<0?'bad':d<=3?'warn':''}">${expLabel(p.exp)}</span></span>`:''}</button>
+        <span class="seg" role="group" aria-label="Stock level of ${esc(p.name)}">${['full','low','out'].map(l=>`<button data-act="level" data-id="${p.id}" data-level="${l}" aria-pressed="${p.level===l}">${{full:'Stocked',low:'Low',out:'Out'}[l]}</button>`).join('')}</span>
+        ${p.level!=='full'?`<button class="ghost tolist" data-act="tolist" data-id="${p.id}"${on?' disabled':''}>${on?'On list':'+ List'}</button>`:''}</li>`}).join('')}</ul></div>`).join('');
+  $('staples').innerHTML=state.staples.length?state.staples.map((s,i)=>`<span class="mchip">${esc(s.name)} <button data-act="unstaple" data-i="${i}" aria-label="Stop adding ${esc(s.name)} every week">×</button></span>`).join(''):'<span class="hint">No staples yet.</span>';
+}
+function expLabel(iso){const d=daysTo(iso);return d<0?`expired ${-d}d ago`:d===0?'use today':d===1?'use by tomorrow':`use within ${d} days`}
+
+function renderMeals(){
+  const k=key(view),plan=state.plan[k]||[],mm=id=>state.meals.find(m=>m.id===id);
+  const prot=plan.reduce((s,p)=>s+((mm(p.m)||{}).protein||0),0);
+  const missing=missingIngredients();
+  $('mstats').innerHTML=[[plan.length,'Meals planned'],[prot+' g','Planned protein'],[missing.length,'Ingredients to add'],[state.meals.length,'Meals saved']].map(([v,l])=>`<div class="stat"><span class="v">${v}</span><span class="k">${l}</span></div>`).join('');
+  $('mealToList').disabled=!missing.length;
+  $('mealToList').textContent=missing.length?`Add ${missing.length} ingredient${missing.length>1?'s':''} to list`:'Ingredients are on your list';
+  $('days').innerHTML=DAYS.map((d,di)=>`<li class="day"><span class="dl">${d}<small>${dFmt.format(addDays(view,di))}</small></span><span class="dm">${
+    plan.map((p,pi)=>p.d===di&&mm(p.m)?`<span class="mchip">${esc(mm(p.m).name)}<button data-act="unplan" data-i="${pi}" aria-label="Remove ${esc(mm(p.m).name)} from ${d}">×</button></span>`:'').join('')}
+    ${state.meals.length?`<select class="field addmeal" data-plan="${di}" aria-label="Add a meal on ${d}"><option value="">+ Add meal</option>${state.meals.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select>`:''}</span></li>`).join('');
+  $('mealLib').innerHTML=state.meals.length?state.meals.map(m=>`<li class="meal"><button class="meta" data-act="meal-edit" data-id="${m.id}"><span class="nm">${esc(m.name)}</span><span class="sub">${m.protein?m.protein+' g protein · ':''}${m.ing.map(x=>esc(x.name)).join(', ')}</span></button></li>`).join('')
+    :`<li class="empty" style="border:0">No meals yet. Tap "New meal" and list its ingredients.</li>`;
+}
+function missingIngredients(){const plan=state.plan[key(view)]||[],w=week(),out=[];
+  plan.forEach(p=>{const m=state.meals.find(m=>m.id===p.m);if(!m)return;m.ing.forEach(x=>{if(!w.some(i=>norm(i.name)===norm(x.name))&&!out.some(o=>norm(o.name)===norm(x.name)))out.push(x)})});return out}
+
+function renderPrices(){
+  const idx=priceIndex(),q=norm(pq),list=Object.values(idx).filter(e=>!q||norm(e.name).includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+  $('priceList').innerHTML=!Object.keys(idx).length?`<div class="empty">No prices yet.<br>Scan a receipt or type a price on your list, and each item's price history starts here.</div>`
+   :!list.length?`<div class="empty">Nothing matches "${esc(pq)}".</div>`
+   :`<ul class="items">${list.map(e=>{const by=latestByStore(e.e),stores=Object.values(by).sort((a,b)=>a.price-b.price),last=e.e[e.e.length-1],prev=e.e.length>1?e.e[e.e.length-2]:null;
+      const tr=prev?(last.price>prev.price+.009?`<span class="up">▲ ${eur(last.price-prev.price)}</span>`:last.price<prev.price-.009?`<span class="down">▼ ${eur(prev.price-last.price)}</span>`:''):'';
+      return `<li class="pcard"><div class="ptop"><span class="nm">${esc(e.name)}</span><span class="last">${eur(last.price)} ${tr}</span></div>
+      <span class="sub">Last bought KW ${isoWeek(fromKey(last.k))} at ${esc(last.store)} · ${fmtNum(last.qty)} ${esc(last.unit)} · ${e.e.length} purchase${e.e.length>1?'s':''}</span>
+      <div class="stores">${stores.map((s,i)=>`<span class="sp${i===0&&stores.length>1?' best':''}">${esc(s.store)} ${eur(s.price)}</span>`).join('')}</div></li>`}).join('')}</ul>`;
+}
+
+function renderStats(){
+  const weeks=[];for(let o=-7;o<=0;o++){const m=addDays(view,o*7);weeks.push({m,v:spent(state.weeks[key(m)]||[])})}
+  const b=state.budget,max=Math.max(...weeks.map(w=>w.v),b||0,1);
+  if(document.activeElement!==$('budget'))$('budget').value=fmtNum(b);
+  $('bars').innerHTML=weeks.map((w,i)=>`<button class="bar${i===7?' cur':''}${b&&w.v>b?' over':''}" data-week="${key(w.m)}" aria-label="KW ${isoWeek(w.m)}: ${eur(w.v)}">
+    <span class="val">${w.v?Math.round(w.v)+' €':''}</span><span class="col" style="height:${w.v/max*120}px"></span><span class="wk">${isoWeek(w.m)}</span></button>`).join('');
+  const items=week().filter(i=>i.done&&i.price!=null);
+  $('catTitle').textContent='Where the money went · KW '+isoWeek(view);
+  const by=CATS.map(c=>[c,r2(items.filter(i=>i.cat===c).reduce((s,i)=>s+i.price,0))]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]),top=by.length?by[0][1]:1;
+  const unpl=r2(items.filter(i=>i.unplanned).reduce((s,i)=>s+i.price,0));
+  $('cats').innerHTML=by.length?by.map(([c,v])=>`<div class="hrow"><span>${esc(c)}</span><span class="track"><i style="width:${v/top*100}%"></i></span><span class="amt">${eur(v)}</span></div>`).join('')+(unpl?`<p class="hint">${eur(unpl)} of it was unplanned (on the receipt but not on your list).</p>`:'')
+    :`<p class="hint">Nothing bought with a price yet this week.</p>`;
+  const pb=week().filter(i=>i.done&&i.protein).reduce((s,i)=>s+i.protein,0),pp=(state.plan[key(view)]||[]).reduce((s,p)=>s+((state.meals.find(m=>m.id===p.m)||{}).protein||0),0);
+  $('protein').innerHTML=`<div class="kv"><span>Protein in this week's groceries</span><span class="mono">${pb} g</span></div><div class="kv"><span>Protein in planned meals</span><span class="mono">${pp} g</span></div><p class="hint">Add grams of protein to an item by tapping it on your list. The app remembers it for next time.</p>`;
+  const pf=state.pfand[key(view)]||{paid:0,returned:0};let tp=0,tr=0;Object.values(state.pfand).forEach(x=>{tp+=x.paid||0;tr+=x.returned||0});
+  $('pfand').innerHTML=`<div class="kv"><span>This week: paid / returned</span><span class="mono">${eur(pf.paid)} / ${eur(pf.returned)}</span></div><div class="kv"><span>Deposit still out in bottles</span><span class="mono">${eur(Math.max(0,r2(tp-tr)))}</span></div><p class="hint">Scanned receipts fill this in. Use the buttons for a Pfandbon or anything you typed by hand.</p>`;
+  const mates=state.flat.mates,sh=[];Object.values(state.weeks).forEach(w=>w.forEach(i=>{if(i.shared&&i.done&&i.price!=null&&!i.settled)sh.push(i)}));
+  const tot=r2(sh.reduce((s,i)=>s+i.price,0)),each=mates.length?r2(tot/(mates.length+1)):0;
+  $('flat').innerHTML=(mates.length?`<div class="chips">${mates.map((m,i)=>`<span class="mchip">${esc(m)} <button data-act="mate-del" data-i="${i}" aria-label="Remove ${esc(m)}">×</button></span>`).join('')}</div>
+    <div class="kv"><span>Shared items not settled yet (${sh.length})</span><span class="mono">${eur(tot)}</span></div>
+    ${mates.map(m=>`<div class="kv"><span>${esc(m)} owes you</span><span class="mono">${eur(each)}</span></div>`).join('')}
+    <div class="actions"><button class="ghost" data-act="settle"${tot?'':' disabled'}>${settleArmed?'Tap again to mark everything settled':'Mark as settled'}</button></div>`
+    :`<p class="hint">Add your flatmates, then mark items as shared on your list (tap the item). Shared costs are split equally between you and them.</p>`);
+  $('dataBox').value=JSON.stringify(state);
+}
+
+/* ---------- sheets ---------- */
+function openSheet(fn){sheetFn=fn;$('scrim').hidden=false;document.body.style.overflow='hidden';drawSheet()}
+function drawSheet(){$('sheet').innerHTML=sheetFn()}
+function closeSheet(){$('scrim').hidden=true;$('sheet').innerHTML='';sheetFn=null;rv=null;if($('shop').hidden)document.body.style.overflow=''}
+const shead=t=>`<div class="shead"><h2>${t}</h2><button class="iconbtn" data-act="close" aria-label="Close">×</button></div>`;
+let toastT;function toast(t){$('toast').textContent=t;$('toast').hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>$('toast').hidden=true,2600)}
+
+function editItemSheet(id){const i=week().find(x=>x.id===id);if(!i)return;openSheet(()=>`${shead('Edit item')}
+  <form data-form="item" data-id="${i.id}" style="display:flex;flex-direction:column;gap:12px">
+   <div class="row"><label class="f" style="flex-basis:100%">Name<input class="field" name="name" value="${esc(i.name)}" required></label></div>
+   <div class="row"><label class="f">Quantity<input class="field" name="qty" inputmode="decimal" value="${fmtNum(i.qty)}"></label><label class="f">Unit<select class="field" name="unit">${opts(UNITS,i.unit)}</select></label></div>
+   <div class="row"><label class="f">Category<select class="field" name="cat">${opts(CATS,i.cat)}</select></label><label class="f">Store<select class="field" name="store">${opts(STORES,i.store)}</select></label></div>
+   <div class="row"><label class="f">Price (€)<input class="field" name="price" inputmode="decimal" value="${fmtNum(i.price)}"></label><label class="f">Protein in total (g)<input class="field" name="protein" inputmode="decimal" value="${fmtNum(i.protein)}"></label></div>
+   <label class="cb"><input type="checkbox" name="staple"${isStaple(i.name)?' checked':''}> Add every week (staple)</label>
+   <label class="cb"><input type="checkbox" name="shared"${i.shared?' checked':''}> Shared with flatmates${state.flat.mates.length?'':' <span class="hint">(add flatmates in Stats)</span>'}</label>
+   <label class="cb"><input type="checkbox" name="done"${i.done?' checked':''}> Bought</label>
+   <div class="actions"><button class="primary" type="submit">Save</button><button class="ghost danger" type="button" data-act="del" data-id="${i.id}">Remove</button></div></form>`)}
+function pantrySheet(id){const p=state.pantry.find(x=>x.id===id);if(!p)return;openSheet(()=>`${shead('Pantry item')}
+  <form data-form="pantry" data-id="${p.id}" style="display:flex;flex-direction:column;gap:12px">
+   <div class="row"><label class="f">Name<input class="field" name="name" value="${esc(p.name)}" required></label><label class="f">Category<select class="field" name="cat">${opts(CATS,p.cat)}</select></label></div>
+   <div class="row"><label class="f">Best before<input class="field" type="date" name="exp" value="${esc(p.exp||'')}"></label><label class="f">Stock<select class="field" name="level">${['full','low','out'].map(l=>`<option value="${l}"${p.level===l?' selected':''}>${{full:'Stocked',low:'Low',out:'Out'}[l]}</option>`).join('')}</select></label></div>
+   <div class="actions"><button class="primary" type="submit">Save</button><button class="ghost danger" type="button" data-act="pdel" data-id="${p.id}">Remove from pantry</button></div></form>`)}
+function mealSheet(id){const m=state.meals.find(x=>x.id===id)||{name:'',protein:null,ing:[]};openSheet(()=>`${shead(id?'Edit meal':'New meal')}
+  <form data-form="meal" data-id="${id||''}" style="display:flex;flex-direction:column;gap:12px">
+   <div class="row"><label class="f">Meal name<input class="field" name="name" value="${esc(m.name)}" placeholder="e.g. Chicken rice bowl" required></label><label class="f" style="flex:0 1 150px">Protein per serving (g)<input class="field" name="protein" inputmode="decimal" value="${fmtNum(m.protein)}"></label></div>
+   <label class="f">Ingredients, one per line: name, amount<textarea class="field" name="ing" style="font-family:var(--f-body);font-size:.9rem" placeholder="Chicken breast, 500 g&#10;Rice, 1 kg&#10;Spinach, 300 g">${esc(m.ing.map(x=>`${x.name}, ${fmtNum(x.qty)} ${x.unit}`).join('\n'))}</textarea></label>
+   <div class="actions"><button class="primary" type="submit">Save meal</button>${id?`<button class="ghost danger" type="button" data-act="meal-del" data-id="${id}">Delete meal</button>`:''}</div></form>`)}
+function parseIng(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const [n,...rest]=l.split(',');const r=rest.join(',').trim();const m=r.match(/([\d.,]+)\s*([a-zA-Z]+)?/);
+  let unit=m&&m[2]?m[2].toLowerCase():'pcs';unit=UNITS.find(u=>u.toLowerCase()===unit)||(unit==='l'?'L':unit.startsWith('stk')||unit==='x'?'pcs':'pcs');
+  const name=n.trim();return {name,qty:m?num(m[1])||1:1,unit,cat:catGuess(name)}})}
+
+/* ---------- receipt import ---------- */
+function scanSheet(){rv={stage:'pick'};openSheet(drawScan)}
+function drawScan(){
+  if(rv.stage==='pick')return `${shead('Scan receipt')}
+   <p class="hint">The app reads every item and price, matches them to your list and ticks them off. You check the result before anything is saved. Nothing leaves your phone.</p>
+   <div class="pick">
+     <label>Receipt PDF<small>Rewe eBon, Lidl Plus, email receipts. Most accurate.</small><input type="file" accept="application/pdf" data-file="pdf"></label>
+     <label>Photo<small>Paper receipt. Lay it flat in good light.</small><input type="file" accept="image/*" data-file="img"></label>
+     <button type="button" data-act="rv-paste">Paste text<small>Copied from an app or email.</small></button>
+   </div>`;
+  if(rv.stage==='paste')return `${shead('Paste receipt text')}
+   <textarea class="field" id="rvText" style="min-height:220px" placeholder="REWE&#10;H-MILCH 1,5% 1,09 B&#10;HAFERFL. ZART 0,79 B&#10;SUMME EUR 1,88"></textarea>
+   <div class="actions"><button class="primary" data-act="rv-read">Read receipt</button><button class="ghost" data-act="rv-back">Back</button></div>`;
+  if(rv.stage==='busy')return `${shead('Reading receipt')}<div class="status"><div class="spin"></div><span>${esc(rv.msg||'Reading…')}</span></div>`;
+  if(rv.stage==='error')return `${shead('Couldn’t read it')}<p>${esc(rv.msg)}</p><div class="actions"><button class="primary" data-act="rv-back">Try another way</button></div>`;
+  const items=weekOf(rv.wk),sum=r2(rv.rows.reduce((s,r)=>s+r.price,0)+rv.pfandPaid-rv.pfandRet),useN=rv.rows.filter(r=>r.act!=='skip').length;
+  const ok=rv.total!=null&&Math.abs(sum-rv.total)<.015;
+  return `${shead('Check receipt')}
+   <div class="row"><label class="f">Store<select class="field" id="rvStore">${opts(STORES,rv.store)}</select></label><label class="f">Shopping date<input class="field" type="date" id="rvDate" value="${rv.date}"></label></div>
+   <p class="hint">Goes to KW ${isoWeek(fromKey(rv.wk))} (${dFmt.format(fromKey(rv.wk))} – ${dFmt.format(addDays(fromKey(rv.wk),6))}).</p>
+   <div class="sumcheck${ok?'':' off'}">${rv.total==null?`Found ${rv.rows.length} lines adding up to ${eur(sum)}. No total line found, so compare with the paper receipt.`:ok?`All ${rv.rows.length} lines add up to the receipt total of ${eur(rv.total)}.`:`Lines add up to ${eur(sum)} but the receipt says ${eur(rv.total)}. A line may have been misread. Fix its price below.`}</div>
+   <ul class="rv">${rv.rows.map((r,i)=>`<li class="${r.act==='skip'?'skip':''}"><div class="rvtop"><span>${esc(r.recv)}${r.qty?` · ${fmtNum(r.qty)}${r.unit==='kg'?' kg':'×'}`:''}</span><input class="price" data-rvprice="${i}" inputmode="decimal" value="${fmtNum(r.price)}" aria-label="Price"></div>
+     <select class="field" data-rv="${i}" aria-label="What is this?">
+       <optgroup label="On your list">${items.map(it=>`<option value="${it.id}"${r.act===it.id?' selected':''}>${esc(it.name)}${it.done&&it.price!=null?' (already priced)':''}</option>`).join('')}</optgroup>
+       <option value="new"${r.act==='new'?' selected':''}>+ Add as new item</option><option value="skip"${r.act==='skip'?' selected':''}>Skip this line</option></select>
+     ${r.act==='new'?`<div class="row"><input class="field grow" data-rvname="${i}" value="${esc(r.name)}" aria-label="Item name"><select class="field w-sel" data-rvcat="${i}" aria-label="Category">${opts(CATS,r.cat)}</select></div>`:''}</li>`).join('')}</ul>
+   ${rv.pfandPaid||rv.pfandRet?`<label class="cb"><input type="checkbox" id="rvPf"${rv.pfandOn?' checked':''}> Log Pfand: ${eur(rv.pfandPaid)} paid, ${eur(rv.pfandRet)} returned</label>`:''}
+   <p class="hint">When you link a receipt line to an item, the app remembers that name for next time.</p>
+   <div class="actions"><button class="primary" data-act="rv-apply"${useN?'':' disabled'}>Save ${useN} price${useN===1?'':'s'}</button><button class="ghost" data-act="rv-back">Start over</button></div>`;
+}
+function buildReview(p){
+  const d=p.date||new Date(), wk=key(monday(d)), items=weekOf(wk), used=new Set();
+  const rows=p.lines.map(l=>{const al=state.aliases[norm(l.name)];let best=null,bs=0;
+    for(const it of items){if(used.has(it.id))continue;let s=al&&norm(al)===norm(it.name)?2:sim(l.name,it.name);if(it.done&&it.price!=null)s-=.3;if(s>bs){bs=s;best=it}}
+    const act=best&&bs>=.45?best.id:'new';if(act!=='new')used.add(act);
+    const name=al||pretty(l.name);return {recv:l.name,price:l.price,qty:l.qty,unit:l.unit,act,name,cat:catGuess(name)}});
+  rv={stage:'review',wk,date:key(d),store:p.store||(STORES.includes(state.ui.lastStore)?state.ui.lastStore:'Aldi'),total:p.total,rows,pfandPaid:p.pfandPaid,pfandRet:p.pfandRet,pfandOn:true};
+}
+function readText(t){const p=parseReceipt(t);if(!p.lines.length){rv={stage:'error',msg:'No item lines with prices were found. If this is a photo, try a sharper one with the receipt flat and well lit, or upload the PDF version.'};}else buildReview(p);drawSheet()}
+function loadScript(src){return new Promise((res,rej)=>{const ex=document.querySelector(`script[src="${src}"]`);if(ex&&ex.dataset.ok)return res();const s=ex||document.createElement('script');
+  s.addEventListener('load',()=>{s.dataset.ok='1';res()});s.addEventListener('error',()=>rej(new Error('load')));if(!ex){s.src=src;document.head.appendChild(s)}})}
+const timeout=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+async function pdfText(file){await loadScript(PDFJS);await loadScript(PDFWK);pdfjsLib.GlobalWorkerOptions.workerSrc=PDFWK;
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false}).promise;const out=[];
+  for(let n=1;n<=doc.numPages;n++){const tc=await(await doc.getPage(n)).getTextContent();const rows=[];
+    tc.items.forEach(it=>{if(!it.str||!it.str.trim())return;const y=it.transform[5];let r=rows.find(r=>Math.abs(r.y-y)<3);if(!r)rows.push(r={y,c:[]});r.c.push({x:it.transform[4],s:it.str})});
+    rows.sort((a,b)=>b.y-a.y).forEach(r=>out.push(r.c.sort((a,b)=>a.x-b.x).map(c=>c.s).join(' ')))}
+  return out.join('\n')}
+function toCanvas(file){return new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(file);img.onload=()=>{
+  const long=Math.max(img.width,img.height),sc=Math.min(2400/long,Math.max(1,1400/img.width));const c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+  const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height),a=d.data;
+  for(let i=0;i<a.length;i+=4){let g=.299*a[i]+.587*a[i+1]+.114*a[i+2];g=Math.max(0,Math.min(255,(g-140)*1.6+140));a[i]=a[i+1]=a[i+2]=g}
+  x.putImageData(d,0,0);URL.revokeObjectURL(u);res(c)};img.onerror=()=>rej(new Error('img'));img.src=u})}
+async function ocrText(file){await loadScript(TESS);const c=await toCanvas(file);
+  const w=await timeout(Tesseract.createWorker('deu',1,{logger:m=>{if(m.status==='recognizing text'&&rv&&rv.stage==='busy'){rv.msg='Reading text… '+Math.round(m.progress*100)+'%';drawSheet()}}}),60000);
+  try{const {data}=await timeout(w.recognize(c),120000);return data.text}finally{w.terminate()}}
+async function onFile(kind,file){if(!file)return;rv={stage:'busy',msg:kind==='pdf'?'Opening PDF…':'Preparing photo… The first scan downloads the German text reader (about 10 MB).'};drawSheet();
+  try{const t=kind==='pdf'?await timeout(pdfText(file),45000):await ocrText(file);readText(t)}
+  catch(e){rv={stage:'error',msg:kind==='pdf'?'This PDF couldn’t be opened. If it’s a scanned image rather than a digital receipt, use Photo instead, or paste the text.':'The photo reader couldn’t start. The first photo scan needs an internet connection to download the German text reader (about 10 MB). Connect and try again, or use a PDF or paste the receipt text.'};drawSheet()}}
+function applyReview(){
+  const w=weekOf(rv.wk);let n=0;
+  rv.rows.forEach(r=>{if(r.act==='skip'||r.price==null)return;let it;
+    if(r.act==='new'){it=newItem({name:r.name.trim()||pretty(r.recv),cat:r.cat,store:rv.store,unplanned:true});w.push(it)}else it=w.find(x=>x.id===r.act);
+    if(!it)return;it.price=r.price;it.done=true;it.store=rv.store;if(r.qty){it.qty=r.qty;if(r.unit==='kg')it.unit='kg'}
+    state.aliases[norm(r.recv)]=it.name;syncPantry(it.name);n++});
+  if(rv.pfandOn&&(rv.pfandPaid||rv.pfandRet)){const p=state.pfand[rv.wk]||(state.pfand[rv.wk]={paid:0,returned:0});p.paid=r2(p.paid+rv.pfandPaid);p.returned=r2(p.returned+rv.pfandRet)}
+  state.ui.lastStore=rv.store;view=fromKey(rv.wk);tab='list';save();closeSheet();render();toast(`Saved ${n} price${n===1?'':'s'} to KW ${isoWeek(view)}`)}
+
+/* ---------- shopping mode ---------- */
+let lock=null;
+function openShop(){$('shop').hidden=false;document.body.style.overflow='hidden';renderShop();try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(l=>lock=l).catch(()=>{})}catch(e){}}
+function closeShop(){$('shop').hidden=true;document.body.style.overflow='';try{lock&&lock.release()}catch(e){}lock=null;render()}
+function renderShop(){const items=week(),left=items.filter(i=>!i.done).length;
+  $('shopIn').innerHTML=`<div class="shead"><h2 style="font-family:var(--f-display);font-stretch:75%;font-size:1.6rem;margin:0;text-transform:uppercase">${left?left+' to get':'All done'}</h2><button class="ghost" data-act="shop-close">Done</button></div>
+  ${STORES.filter(s=>items.some(i=>i.store===s)).map(s=>{const g=items.filter(i=>i.store===s).sort((a,b)=>a.done-b.done||CATS.indexOf(a.cat)-CATS.indexOf(b.cat));
+    return `<div class="group"><div class="gh"><span>${esc(s)}</span><span>${g.filter(i=>i.done).length}/${g.length}</span></div><div class="items" style="border:1px solid var(--line);border-radius:12px;overflow:hidden">${g.map(i=>`<button class="sitem${i.done?' done':''}" data-act="toggle" data-id="${i.id}" aria-pressed="${!!i.done}"><span class="check"><svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>${esc(i.name)}<small>${fmtNum(i.qty)} ${esc(i.unit)} · ${esc(i.cat)}</small></span></button>`).join('')}</div></div>`}).join('')||'<div class="empty">Nothing on this week\'s list.</div>'}
+  <button class="primary" data-act="scan" style="padding:14px">Scan receipt at the checkout</button>`}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  if(e.target===$('scrim')){closeSheet();return}
+  const b=e.target.closest('[data-act],[data-week],[data-tab],[data-group]');if(!b)return;
+  if(b.dataset.tab){tab=b.dataset.tab;render();return}
+  if(b.dataset.group){state.ui.group=b.dataset.group;save();render();return}
+  if(b.dataset.week){view=fromKey(b.dataset.week);tab='list';render();return}
+  const id=b.dataset.id,a=b.dataset.act;
+  switch(a){
+    case 'toggle':{const i=week().find(x=>x.id===id);if(!i)return;i.done=!i.done;if(i.done)syncPantry(i.name);break}
+    case 'del':{const w=week();const ix=w.findIndex(i=>i.id===id);if(ix>=0)w.splice(ix,1);if(sheetFn)closeSheet();break}
+    case 'edit':editItemSheet(id);return;
+    case 'level':{const p=state.pantry.find(p=>p.id===id);p.level=b.dataset.level;break}
+    case 'pedit':pantrySheet(id);return;
+    case 'pdel':state.pantry=state.pantry.filter(p=>p.id!==id);closeSheet();break;
+    case 'tolist':{const p=state.pantry.find(p=>p.id===id);const h=lastItem(norm(p.name));week().push(newItem({name:p.name,cat:p.cat,store:h?h.store:'Aldi',qty:h?h.qty:1,unit:h?h.unit:'pcs'}));break}
+    case 'due-add':{const n=b.dataset.n,h=lastItem(norm(n));week().push(newItem({name:n,cat:h.cat,store:h.store,qty:h.qty,unit:h.unit}));break}
+    case 'unstaple':state.staples.splice(+b.dataset.i,1);break;
+    case 'unplan':{const k=key(view);state.plan[k].splice(+b.dataset.i,1);break}
+    case 'meal-new':mealSheet(null);return;
+    case 'meal-edit':mealSheet(id);return;
+    case 'meal-del':state.meals=state.meals.filter(m=>m.id!==id);Object.values(state.plan).forEach(p=>{for(let i=p.length-1;i>=0;i--)if(p[i].m===id)p.splice(i,1)});closeSheet();break;
+    case 'pf-paid':case 'pf-ret':{const v=num($('pfAmt').value);if(!v)return;const p=state.pfand[key(view)]||(state.pfand[key(view)]={paid:0,returned:0});if(a==='pf-paid')p.paid=r2(p.paid+v);else p.returned=r2(p.returned+v);$('pfAmt').value='';break}
+    case 'mate-del':state.flat.mates.splice(+b.dataset.i,1);break;
+    case 'settle':if(!settleArmed){settleArmed=true;render();setTimeout(()=>{settleArmed=false;if(tab==='stats')render()},4000);return}
+      settleArmed=false;Object.values(state.weeks).forEach(w=>w.forEach(i=>{if(i.shared&&i.done)i.settled=true}));toast('Marked as settled');break;
+    case 'go-backup':tab='stats';render();setTimeout(()=>$('dataBox').scrollIntoView({behavior:'smooth',block:'center'}),50);return;
+    case 'scan':scanSheet();return;
+    case 'shop':openShop();return;
+    case 'shop-close':closeShop();return;
+    case 'close':closeSheet();return;
+    case 'rv-paste':rv={stage:'paste'};drawSheet();return;
+    case 'rv-back':rv={stage:'pick'};drawSheet();return;
+    case 'rv-read':{const t=$('rvText').value;if(t.trim())readText(t);return}
+    case 'rv-apply':applyReview();return;
+    default:return;
+  }
+  save();render();
+});
+document.addEventListener('change',e=>{
+  const t=e.target,d=t.dataset;
+  if(d.act==='price'){const i=week().find(x=>x.id===d.id);if(i){i.price=num(t.value);if(i.price!=null)i.done=true;if(i.done)syncPantry(i.name)}save();render();return}
+  if(d.file){onFile(d.file,t.files&&t.files[0]);return}
+  if(d.plan!==undefined&&t.value){const k=key(view);(state.plan[k]||(state.plan[k]=[])).push({m:t.value,d:+d.plan});save();render();return}
+  if(rv&&rv.stage==='review'){
+    if(d.rv!==undefined){rv.rows[+d.rv].act=t.value;drawSheet();return}
+    if(d.rvcat!==undefined){rv.rows[+d.rvcat].cat=t.value;return}
+    if(d.rvprice!==undefined){rv.rows[+d.rvprice].price=num(t.value);drawSheet();return}
+    if(t.id==='rvStore'){rv.store=t.value;return}
+    if(t.id==='rvDate'&&t.value){rv.date=t.value;const nk=key(monday(fromKey(t.value)));if(nk!==rv.wk){rv.wk=nk;rv.rows.forEach(r=>{if(r.act!=='new'&&r.act!=='skip')r.act='new'})}drawSheet();return}
+    if(t.id==='rvPf'){rv.pfandOn=t.checked;return}
+  }
+  if(t.id==='budget'){state.budget=num(t.value);save();render()}
+});
+document.addEventListener('input',e=>{const d=e.target.dataset;if(rv&&d.rvname!==undefined)rv.rows[+d.rvname].name=e.target.value;if(e.target.id==='pSearch'){pq=e.target.value;renderPrices()}});
+document.addEventListener('submit',e=>{
+  const f=e.target,kind=f.dataset.form;if(!kind)return;e.preventDefault();const v=n=>f.elements[n];
+  if(kind==='item'){const i=week().find(x=>x.id===f.dataset.id);if(!i)return;const oldStaple=isStaple(i.name);
+    state.staples=state.staples.filter(s=>norm(s.name)!==norm(i.name));
+    Object.assign(i,{name:v('name').value.trim()||i.name,qty:num(v('qty').value)??1,unit:v('unit').value,cat:v('cat').value,store:v('store').value,price:num(v('price').value),protein:num(v('protein').value),shared:v('shared').checked,done:v('done').checked});
+    if(i.protein!=null)state.proteinOf[norm(i.name)]=i.protein;
+    if(v('staple').checked)state.staples.push({name:i.name,qty:i.qty,unit:i.unit,cat:i.cat,store:i.store});
+    if(i.done)syncPantry(i.name);
+    if(v('staple').checked&&!oldStaple)toast(i.name+' will be added every week');
+  }
+  if(kind==='pantry'){const p=state.pantry.find(x=>x.id===f.dataset.id);if(!p)return;p.name=v('name').value.trim()||p.name;p.cat=v('cat').value;p.level=v('level').value;if(v('exp').value)p.exp=v('exp').value;else delete p.exp}
+  if(kind==='meal'){const name=v('name').value.trim();if(!name)return;const m={name,protein:num(v('protein').value),ing:parseIng(v('ing').value)};
+    if(f.dataset.id)Object.assign(state.meals.find(x=>x.id===f.dataset.id),m);else state.meals.push({id:uid(),...m})}
+  save();closeSheet();render();
+});
+$('addForm').addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();const name=$('aName').value.trim();if(!name)return;
+  week().push(newItem({name,qty:num($('aQty').value)??1,unit:$('aUnit').value,cat:$('aCat').value,store:$('aStore').value}));
+  $('aName').value='';$('aQty').value='1';save();render();$('aName').focus()});
+$('aName').addEventListener('change',()=>{const n=$('aName').value.trim();if(!n)return;const h=lastItem(norm(n));$('aCat').value=h?h.cat:catGuess(n);if(h){$('aStore').value=h.store;$('aUnit').value=h.unit}});
+$('pForm').addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();const name=$('pName').value.trim();if(!name)return;state.pantry.push({id:uid(),name,cat:$('pCat').value,level:'full'});$('pName').value='';save();render();$('pName').focus()});
+$('pName').addEventListener('change',()=>{const n=$('pName').value.trim();if(n)$('pCat').value=catGuess(n)});
+$('mateForm').addEventListener('submit',e=>{e.preventDefault();e.stopPropagation();const n=$('mateName').value.trim();if(!n)return;state.flat.mates.push(n);$('mateName').value='';save();render()});
+$('mealToList').onclick=()=>{const miss=missingIngredients();const w=week();miss.forEach(x=>{const h=lastItem(norm(x.name));w.push(newItem({...x,store:h?h.store:'Aldi',fromMeal:true}))});save();render();toast(`Added ${miss.length} ingredient${miss.length===1?'':'s'} to KW ${isoWeek(view)}`)};
+$('copyPrev').onclick=()=>{const w=week();(state.weeks[key(addDays(view,-7))]||[]).forEach(p=>{if(!w.some(i=>norm(i.name)===norm(p.name)))w.push(newItem({name:p.name,qty:p.qty,unit:p.unit,cat:p.cat,store:p.store,shared:p.shared,protein:p.protein}))});save();render()};
+$('addLow').onclick=()=>{const w=week();state.pantry.filter(p=>p.level!=='full').forEach(p=>{if(!w.some(i=>norm(i.name)===norm(p.name))){const h=lastItem(norm(p.name));w.push(newItem({name:p.name,cat:p.cat,store:h?h.store:'Aldi',qty:h?h.qty:1,unit:h?h.unit:'pcs'}))}});save();render()};
+$('prev').onclick=()=>{view=addDays(view,-7);render()};
+$('next').onclick=()=>{view=addDays(view,7);render()};
+$('now').onclick=()=>{view=new Date(THIS);render()};
+$('clearEx').onclick=()=>{state=empty();save();render()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(sheetFn)closeSheet();else if(!$('shop').hidden)closeShop()}});
+const msg=(t,err)=>{$('dataMsg').textContent=t;$('dataMsg').className='msg'+(err?' err':'')};
+const markBackup=()=>{state.ui.lastBackup=Date.now();save();$('backupNag').hidden=true};
+$('copyData').onclick=()=>{const t=$('dataBox');markBackup();try{navigator.clipboard.writeText(t.value).then(()=>msg('Backup copied.'),()=>{t.focus();t.select();msg('The text is selected. Copy it with your device’s Copy command.')})}catch(e){t.focus();t.select();msg('The text is selected. Copy it with your device’s Copy command.')}};
+$('loadData').onclick=()=>{try{const d=JSON.parse($('dataBox').value);if(!valid(d))throw 0;d.examples=false;state=ensure(d);save();render();msg('Backup restored.')}catch(e){msg('That text isn’t a Pantry Log backup. Paste the full text you copied with “Copy backup”.',true)}};
+$('wipe').onclick=()=>{if(!wipeArmed){wipeArmed=true;$('wipe').textContent='Tap again to delete everything';setTimeout(()=>{wipeArmed=false;$('wipe').textContent='Delete all data'},4000);return}
+  wipeArmed=false;$('wipe').textContent='Delete all data';state=empty();save();render();msg('All data deleted.')};
+render();
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+</script>
+</body>
+</html>
